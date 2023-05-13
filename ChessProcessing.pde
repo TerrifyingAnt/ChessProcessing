@@ -1,3 +1,5 @@
+import processing.serial.*;
+
 final int WIDTH = 720;
 final int HEIGHT = 720;
 final int LENGTH = 60;
@@ -8,7 +10,15 @@ final int HEIGHT_END = HEIGHT / 2 + LENGTH * 4;
 final int WIDTH_START = WIDTH / 2 - LENGTH * 4;
 final int WIDTH_END = WIDTH / 2 + LENGTH * 4;
 
+boolean rectOver = false;
+boolean exitOver = false;
+
 String logString = "";
+
+Serial myPort;
+
+// * переменная хранит в себе то, что решил делать пользователь
+UIChoice uiChoice = UIChoice.NOTHING; 
 
 // * переменная, которая хранит в себе фигуру, которая перемещается
 PShape fig;
@@ -29,8 +39,15 @@ PShape[] blackFigures = new PShape[6];
 // * отслеживание нажатие кнопки
 boolean pressedState = false;
 
+color rectColor = color(19, 38, 35);
+color rectHighlight = color(50, 89, 53);
+
 // * расстановка фигур
 void setup() {
+
+    myPort  =  new Serial (this, "COM3",  9600);
+
+    // TODO: вынести в функцию
     for(int i = 0; i < 8; i++) {
         for(int j = 0; j < 8; j++) {
             if (i < 2 || i > 5) {
@@ -78,21 +95,77 @@ void setup() {
 
 public void settings() {
     size(WIDTH, HEIGHT);
-
 }
 
 // * основаня функция рисования
 void draw() {
     background(55, 55, 55);
-    fill(255,255,255);
-    textFont(createFont("Arial", 14, true));
-    text("Логирование", 20, 20);
-    text(logString, 20, 40);
-    textSize(35);
-    drawBoard();
-    drawFigures();
-    if(pressedState) {
-        shape(fig, mouseX, mouseY, LENGTH, LENGTH);
+    switch (uiChoice) {
+        case START_GAME:
+            fill(255,255,255);
+            textFont(createFont("Arial", 14, true));
+            text("Логирование", 20, 20);
+            text(logString, 20, 40);
+            textSize(35);
+            drawBoard();
+            drawFigures();
+            if(pressedState) {
+                shape(fig, mouseX, mouseY, LENGTH, LENGTH);
+            }
+            // TODO: рефакторинг 
+            update(mouseX, mouseY);
+            if (exitOver) {
+                fill(rectHighlight);
+            } else {
+                fill(rectColor);
+            }
+            stroke(255);
+            rect(WIDTH / 8  * 7, HEIGHT / 8 * 7 + HEIGHT / 32, WIDTH / 8 - 15 , HEIGHT / 16, 15);
+            fill(255,255,255);
+            textFont(createFont("Arial", 25, true));
+            text("Выйти", WIDTH / 8  * 7, HEIGHT / 8 * 7 + HEIGHT / 16 + 8);
+            break;
+
+        case NOTHING:
+            update(mouseX, mouseY);
+            if (rectOver) {
+                fill(rectHighlight);
+            } else {
+                fill(rectColor);
+            }
+            stroke(255);
+            rect(HEIGHT / 2 - HEIGHT / 4, WIDTH / 2 - WIDTH / 8, HEIGHT / 2, WIDTH / 4, 15);
+            fill(255,255,255);
+            textFont(createFont("Arial", 40, true));
+            text("Начать игру", WIDTH / 2  - 40 * 11 / 4, HEIGHT / 2 + 40 / 4);
+            break; 
+    }
+}
+
+
+
+
+void update(int x, int y) {
+    if (overButton(WIDTH / 2 - WIDTH / 4, HEIGHT / 2 - HEIGHT / 8, HEIGHT / 2, WIDTH / 4) && uiChoice == UIChoice.NOTHING) {
+        rectOver = true;
+    } 
+    else
+    if (overButton(WIDTH / 8 * 7, HEIGHT / 8 * 7 + HEIGHT / 32, WIDTH / 8 - 15 , HEIGHT / 16) && uiChoice == UIChoice.START_GAME) {
+        exitOver = true;
+    }
+    else {
+        rectOver = false;
+        exitOver = false;
+    }
+}
+
+
+boolean overButton(int x, int y, int width, int height)  {
+    if (mouseX >= x && mouseX <= x+width && 
+        mouseY >= y && mouseY <= y+height) {
+    return true;
+    } else {
+        return false;
     }
 }
 
@@ -147,32 +220,50 @@ void drawFigures() {
 
 // * функция поднимает фигуру с доски
 void mousePressed() {
-    if(mouseY - HEIGHT_START > 0 && mouseY < HEIGHT_END && mouseX - WIDTH_START > 0 && mouseX < WIDTH_END ) {
-        int pressedCellX = (mouseX - WIDTH_START) / LENGTH;
-        int pressedCellY = (mouseY - HEIGHT_START) / LENGTH;
-        if(UIboard[pressedCellY][pressedCellX] != FigureType.NOTHING && !pressedState) {
-            println("Нажал на: " + UIboard[pressedCellY][pressedCellX]);
-            logString = "Нажал на: " + UIboard[pressedCellY][pressedCellX];
-            pressedState = !pressedState;
-            setClickedFigure(UIboard[pressedCellY][pressedCellX]);
-            UIboard[pressedCellY][pressedCellX] = FigureType.NOTHING;
-            board[pressedCellY][pressedCellX] = false;            
-        }
-        else {
-            println("Нажал на клетку: \ny:" + str(pressedCellY) + " \nx:" + str(pressedCellX));
-            // TODO удалить проверку на существование фигуры чуть позже
-            // в идеале, ее не должно быть, этот ход должен блокировать контроллер
-            if (pressedState && UIboard[pressedCellY][pressedCellX] == FigureType.NOTHING) {
-                pressedState = !pressedState;
-                board[pressedCellY][pressedCellX] = true;
-                UIboard[pressedCellY][pressedCellX] = figureType;
-                shape(fig, HEIGHT_START + pressedCellX * LENGTH, WIDTH_START + pressedCellY * LENGTH, LENGTH, LENGTH );
+    switch (uiChoice) {
+        case START_GAME:
+            if(mouseY - HEIGHT_START > 0 && mouseY < HEIGHT_END && mouseX - WIDTH_START > 0 && mouseX < WIDTH_END ) {
+                int pressedCellX = (mouseX - WIDTH_START) / LENGTH;
+                int pressedCellY = (mouseY - HEIGHT_START) / LENGTH;
+                if(UIboard[pressedCellY][pressedCellX] != FigureType.NOTHING && !pressedState) {
+                    println("Нажал на: " + UIboard[pressedCellY][pressedCellX]);
+                    logString = "Нажал на: " + UIboard[pressedCellY][pressedCellX];
+                    pressedState = !pressedState;
+                    setClickedFigure(UIboard[pressedCellY][pressedCellX]);
+                    UIboard[pressedCellY][pressedCellX] = FigureType.NOTHING;
+                    board[pressedCellY][pressedCellX] = false;  
+                    myPort.write(1);          
+                }
+                else {
+                    println("Нажал на клетку: \ny:" + str(pressedCellY) + " \nx:" + str(pressedCellX));
+                    // TODO удалить проверку на существование фигуры чуть позже
+                    // в идеале, ее не должно быть, этот ход должен блокировать контроллер
+                    if (pressedState && UIboard[pressedCellY][pressedCellX] == FigureType.NOTHING) {
+                        pressedState = !pressedState;
+                        board[pressedCellY][pressedCellX] = true;
+                        UIboard[pressedCellY][pressedCellX] = figureType;
+                        shape(fig, HEIGHT_START + pressedCellX * LENGTH, WIDTH_START + pressedCellY * LENGTH, LENGTH, LENGTH );
+                        myPort.write(0);  
+                    }
+                }
             }
-        }
-    }
-    else {
-        println("Нажал не на поле");
-        logString = "Нажал не на поле";
+            else 
+            if (overButton(mouseX, mouseY, HEIGHT / 8, WIDTH / 8)) {
+                // TODO: обновлять фигуры после
+                uiChoice = UIChoice.NOTHING;
+            }
+            else {
+                println("Нажал не на поле");
+                logString = "Нажал не на поле";
+            }
+            break;
+
+        case NOTHING:
+            if (rectOver) {
+                uiChoice = UIChoice.START_GAME;
+            }
+            break;
+
     }
 }
 
