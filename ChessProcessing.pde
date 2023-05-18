@@ -15,6 +15,8 @@ boolean exitOver = false;
 
 String logString = "";
 
+String gameWith ="id игры: ";
+
 Serial myPort;
 
 // * переменная хранит в себе то, что решил делать пользователь
@@ -102,10 +104,20 @@ void draw() {
     background(55, 55, 55);
     switch (uiChoice) {
         case START_GAME:
+            if(myPort.available() != 0) {
+                String temp = myPort.readString();
+                if(temp.indexOf("GAME_ID:") != -1) {
+                    println(myPort.readString());
+                    gameWith += temp.substring(temp.indexOf("GAME_ID:") + 8, temp.indexOf("GAME_ID:") + 16);
+                }
+
+            }
+
             fill(255,255,255);
             textFont(createFont("Arial", 14, true));
             text("Логирование", 20, 20);
             text(logString, 20, 40);
+            text(gameWith, 60, 60);
             textSize(35);
             drawBoard();
             drawFigures();
@@ -232,7 +244,7 @@ void mousePressed() {
                     setClickedFigure(UIboard[pressedCellY][pressedCellX]);
                     UIboard[pressedCellY][pressedCellX] = FigureType.NOTHING;
                     board[pressedCellY][pressedCellX] = false;  
-                    myPort.write(1);          
+                    myPort.write(3);          
                 }
                 else {
                     println("Нажал на клетку: \ny:" + str(pressedCellY) + " \nx:" + str(pressedCellX));
@@ -243,7 +255,9 @@ void mousePressed() {
                         board[pressedCellY][pressedCellX] = true;
                         UIboard[pressedCellY][pressedCellX] = figureType;
                         shape(fig, HEIGHT_START + pressedCellX * LENGTH, WIDTH_START + pressedCellY * LENGTH, LENGTH, LENGTH );
-                        myPort.write(0);  
+
+                        myPort.write(0);
+                        
                     }
                 }
             }
@@ -251,6 +265,7 @@ void mousePressed() {
             if (overButton(mouseX, mouseY, HEIGHT / 8, WIDTH / 8)) {
                 // TODO: обновлять фигуры после
                 uiChoice = UIChoice.NOTHING;
+                myPort.write(2);
             }
             else {
                 println("Нажал не на поле");
@@ -261,6 +276,7 @@ void mousePressed() {
         case NOTHING:
             if (rectOver) {
                 uiChoice = UIChoice.START_GAME;
+                myPort.write(1);
             }
             break;
 
